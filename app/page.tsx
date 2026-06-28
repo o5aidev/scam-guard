@@ -6,6 +6,7 @@ import ResultScreen from "@/components/ResultScreen";
 import ApiKeyScreen from "@/components/ApiKeyScreen";
 import { FAIL_CLOSED_RESULT, type JudgeResult } from "@/lib/schema";
 import { judge, JudgeError } from "@/lib/judge";
+import { extractFacts } from "@/lib/facts";
 import { loadApiKey } from "@/lib/apiKey";
 
 // 画面遷移：キー設定 →（キーあり）入力 → 間（ま）→ 結果。
@@ -94,7 +95,9 @@ async function runJudge(
   key: string,
 ): Promise<JudgeResult | "AUTH_ERROR"> {
   try {
-    return await judge(situation, key);
+    // 端末内で軽く確認事実（国際/国内の電話番号・URL の有無）を抽出して judge へ渡す。
+    // 確信が持てる事実だけが入る＝無ければ undefined 相当（推測で埋めない）。
+    return await judge(situation, key, extractFacts(situation));
   } catch (e) {
     if (e instanceof JudgeError && e.kind === "auth") return "AUTH_ERROR";
     return FAIL_CLOSED_RESULT;
