@@ -1,13 +1,18 @@
-// 判定ハーネス（UI 非依存・サーバ側）。
-// prompts/judge.md を system プロンプトとして読み、Claude Sonnet 4.6 を呼んで JudgeResult を得る。
-// 判定規則は judge.md が唯一の正。ここはその指示書を「運ぶ」だけで、規則を足さない。
+// 判定ハーネス（ブラウザ実行・BYOK）。
+// prompts/judge.md を system プロンプトとして使い、利用者自身のキーで
+// Claude を「端末から直接」呼ぶ。判定規則は judge.md が唯一の正。
+//
+// 方針（このアプリの憲法 §10 / README）:
+//   - APIキーは利用者が入力し、端末内だけに置く。運営者のサーバを一切経由しない。
+//   - judge.md は fs ではなく生成物（judgePrompt.generated.ts）で同梱する＝端末で完結。
+//   - 失敗は JudgeError で投げる。fail-closed の倒し方（黄に倒す）は呼び出し側の責務。
 
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
 import Anthropic from "@anthropic-ai/sdk";
+import { JUDGE_PROMPT } from "./judgePrompt.generated";
 import { validateJudgeResult, type JudgeResult } from "./schema";
 
+// 設計書 v1.0 で選んだモデル（利用者が払うため軽量・安定の Sonnet 4.6）。
+// opts.model で上書き可。
 export const DEFAULT_JUDGE_MODEL = "claude-sonnet-4-6";
 
 // judge.md の「確認事実」に対応（無いこともある。推測で埋めない＝judge.md の指示）。
@@ -18,25 +23,23 @@ export interface Facts {
   URL評価?: "危険" | "不明" | "安全";
 }
 
+// エラーの種類。呼び出し側が「キー画面へ戻す」か「黄に倒す」かを分けられるようにする。
+export type JudgeErrorKind = "config" | "auth" | "rate_limit" | "network" | "format";
+
 export class JudgeError extends Error {
+  kind: JudgeErrorKind;
   raw?: string;
-  constructor(message: string, raw?: string) {
+  constructor(message: string, kind: JudgeErrorKind = "config", raw?: string) {
     super(message);
     this.name = "JudgeError";
+    this.kind = kind;
     this.raw = raw;
   }
 }
 
-// judge.md は実行時に読む（コードへ焼き込まない＝知識と規則を分離）。
-let cachedSystemPrompt: string | null = null;
-
+// judge.md は生成物から取る（コードへ焼き込まない＝知識と規則を分離）。
 export function loadJudgePrompt(): string {
-  if (cachedSystemPrompt) return cachedSystemPrompt;
-  const here = dirname(fileURLToPath(import.meta.url));
-  // lib/ から見たリポジトリ直下の prompts/judge.md
-  const path = join(here, "..", "prompts", "judge.md");
-  cachedSystemPrompt = readFileSync(path, "utf8");
-  return cachedSystemPrompt;
+  return JUDGE_PROMPT;
 }
 
 // judge.md の入力ブロックの形に正規化する。状況は必須、確認事実は任意。
@@ -74,36 +77,56 @@ export function extractJson(text: string): string {
 
 export interface JudgeOptions {
   model?: string;
-  apiKey?: string;
   maxTokens?: number;
 }
 
+// SDK/HTTP 例外を JudgeError の種類へ写す（呼び出し側の分岐用）。
+function classifyError(e: unknown): JudgeError {
+  const status =
+    e && typeof e === "object" && "status" in e ? (e as { status?: number }).status : undefined;
+  if (status === 401 || status === 403) {
+    return new JudgeError("APIキーが正しくないか、権限がありません。", "auth");
+  }
+  if (status === 429) {
+    return new JudgeError("いま混み合っています。少し待ってからお試しください。", "rate_limit");
+  }
+  return new JudgeError("判定サービスに接続できませんでした。", "network");
+}
+
 /**
- * 状況（＋任意の確認事実）を judge.md に従って判定する。
- * 成功時 JudgeResult を返す。API/parse/検証失敗時は JudgeError を投げる
- * （fail-closed の倒し方は呼び出し側の責務＝計画 §3 Task2）。
+ * 状況（＋任意の確認事実）を、利用者のキーで judge.md に従って判定する。
+ * 成功時 JudgeResult を返す。失敗時は種類つきの JudgeError を投げる
+ * （fail-closed の倒し方＝黄／キー画面へ戻す、は呼び出し側の責務）。
  */
 export async function judge(
   situation: string,
+  apiKey: string,
   facts?: Facts,
   opts: JudgeOptions = {},
 ): Promise<JudgeResult> {
   if (!situation || situation.trim() === "") {
-    throw new JudgeError("状況が空です");
+    throw new JudgeError("状況が空です", "config");
   }
-  const apiKey = opts.apiKey ?? process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new JudgeError("ANTHROPIC_API_KEY が未設定です");
+  if (!apiKey || apiKey.trim() === "") {
+    throw new JudgeError("APIキーが設定されていません", "config");
+  }
 
-  const model = opts.model ?? process.env.JUDGE_MODEL ?? DEFAULT_JUDGE_MODEL;
-  const client = new Anthropic({ apiKey });
+  const model = opts.model ?? DEFAULT_JUDGE_MODEL;
+  // 端末から直接 Anthropic を呼ぶ（運営者のサーバを経由しない）。
+  const client = new Anthropic({ apiKey: apiKey.trim(), dangerouslyAllowBrowser: true });
 
-  const message = await client.messages.create({
-    model,
-    max_tokens: opts.maxTokens ?? 1024,
-    temperature: 0, // 判定は安定が望ましい
-    system: loadJudgePrompt(),
-    messages: [{ role: "user", content: buildUserMessage(situation, facts) }],
-  });
+  let message: Anthropic.Message;
+  try {
+    message = await client.messages.create({
+      model,
+      max_tokens: opts.maxTokens ?? 1024,
+      temperature: 0, // 判定は安定が望ましい
+      system: loadJudgePrompt(),
+      messages: [{ role: "user", content: buildUserMessage(situation, facts) }],
+    });
+  } catch (e) {
+    throw classifyError(e);
+  }
 
   const raw = message.content
     .filter((b): b is Anthropic.TextBlock => b.type === "text")
@@ -115,10 +138,10 @@ export async function judge(
   try {
     parsed = JSON.parse(extractJson(raw));
   } catch {
-    throw new JudgeError("判定の出力を JSON として読めませんでした", raw);
+    throw new JudgeError("判定の出力を JSON として読めませんでした", "format", raw);
   }
 
   const validated = validateJudgeResult(parsed);
-  if (!validated.ok) throw new JudgeError(`判定の形が不正です: ${validated.error}`, raw);
+  if (!validated.ok) throw new JudgeError(`判定の形が不正です: ${validated.error}`, "format", raw);
   return validated.value;
 }

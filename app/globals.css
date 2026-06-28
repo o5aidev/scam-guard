@@ -128,6 +128,11 @@ body {
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.18);
 }
 
+/* <a> を btn として使う発信ボタン用（下線を消す） */
+a.btn {
+  text-decoration: none;
+}
+
 .btn:focus-visible {
   outline: 3px solid var(--focus);
   outline-offset: 2px;
@@ -231,6 +236,214 @@ body {
   white-space: pre-wrap;
   word-break: break-word;
   margin: 0 0 16px;
+}
+
+/* ── APIキー設定（BYOK） ── */
+/* 端末内だけにキーを置く説明ボックス。安心感を出すため落ち着いた色味 */
+.note {
+  background: var(--green-bg);
+  border: 2px solid #b6dcc3;
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin: 0 0 18px;
+  font-size: 1.02rem;
+  line-height: var(--line);
+}
+.note p {
+  margin: 0 0 8px;
+}
+.note p:last-child {
+  margin: 0;
+}
+
+/* 単一行入力（キー貼り付け用） */
+.input {
+  width: 100%;
+  font-size: 1.1rem;
+  line-height: var(--line);
+  padding: 14px;
+  border: 2px solid var(--line-color);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: inherit;
+}
+.input:focus {
+  outline: 3px solid var(--focus);
+  outline-offset: 1px;
+  border-color: var(--focus);
+}
+
+/* 入力 ＋「見る/かくす」トグルを横並び */
+.key-row {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+}
+.key-row .input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.key-toggle {
+  width: auto;
+  flex: 0 0 auto;
+  white-space: nowrap;
+  padding: 0 18px;
+}
+
+.hint a {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+/* 控えめなテキストボタン（キー設定への入口など） */
+.link-btn {
+  display: inline-block;
+  margin: 20px auto 0;
+  background: none;
+  border: 0;
+  color: var(--ink-soft);
+  font-family: inherit;
+  font-size: 1rem;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 10px;
+  width: 100%;
+  text-align: center;
+}
+.link-btn:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+/* ── 間（ま）：結果の前に置く一拍（CLAUDE.md §7） ── */
+.pause {
+  text-align: center;
+  padding: 64px 8px 48px;
+}
+
+.pause-ring {
+  width: 104px;
+  height: 104px;
+  margin: 0 auto 30px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #cfe0f3 0%, #eaf2fb 70%);
+  border: 4px solid var(--primary);
+  animation: breathe 4s ease-in-out infinite;
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    transform: scale(0.82);
+    opacity: 0.65;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 1;
+  }
+}
+
+/* 動きに弱い人への配慮（アクセシビリティ） */
+@media (prefers-reduced-motion: reduce) {
+  .pause-ring {
+    animation: none;
+  }
+}
+
+.pause-title {
+  font-size: 1.7rem;
+  font-weight: 800;
+  margin: 0 0 8px;
+}
+
+.pause-sub {
+  font-size: 1.15rem;
+  color: var(--ink-soft);
+  margin: 0;
+}
+
+/* ── 3色結果（CLAUDE.md §7） ── */
+.risk-banner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 28px 16px;
+  border-radius: 18px;
+  border: 3px solid transparent;
+  margin: 8px 0 20px;
+  text-align: center;
+}
+
+.risk-emoji {
+  font-size: 3.2rem;
+  line-height: 1;
+}
+
+.risk-word {
+  font-size: 2.1rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.risk-red {
+  background: var(--red-bg);
+  border-color: var(--red);
+  color: var(--red);
+}
+
+.risk-yellow {
+  background: var(--yellow-bg);
+  border-color: var(--yellow);
+  color: var(--yellow);
+}
+
+.risk-green {
+  background: var(--green-bg);
+  border-color: var(--green);
+  color: var(--green);
+}
+
+.result-reason {
+  font-size: 1.2rem;
+  line-height: var(--line);
+  margin: 0 0 18px;
+}
+
+/* 次の一手は1つだけ・目立たせる（左に太い帯） */
+.next-box {
+  background: var(--surface);
+  border: 2px solid var(--line-color);
+  border-left: 8px solid var(--primary);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin: 0 0 4px;
+}
+
+.next-label {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--primary);
+  margin-bottom: 4px;
+}
+
+.next-action {
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: var(--line);
+  margin: 0;
+}
+
+/* 緑でも「保証ではない」を必ず添える（偽陰性の害が最大） */
+.green-note {
+  font-size: 1rem;
+  color: var(--ink-soft);
+  background: var(--bg);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  margin: 16px 0 0;
 }
 
 .visually-hidden {
