@@ -1,0 +1,28 @@
+{
+  "name": "scam-guard",
+  "version": "0.1.0",
+  "private": true,
+  "description": "まもり — 詐欺から「立ち止まる一拍」を作るアプリ（MVP）",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.65.0",
+    "next": "^15.5.7",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "tesseract.js": "^5.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "dotenv": "^16.4.7",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.8"
+  }
+}
