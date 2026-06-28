@@ -4,9 +4,13 @@
   "private": true,
   "description": "まもり — 詐欺から「立ち止まる一拍」を作るアプリ（MVP）",
   "scripts": {
+    "build-prompt": "node scripts/gen-prompt.mjs",
+    "predev": "npm run build-prompt",
     "dev": "next dev",
+    "prebuild": "npm run build-prompt",
     "build": "next build",
     "start": "next start",
+    "pretest": "npm run build-prompt",
     "test": "vitest run",
     "test:watch": "vitest"
   },
