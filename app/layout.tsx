@@ -13,6 +13,8 @@ export const viewport: Viewport = {
   // 高齢者が拡大できるようズームを無効化しない（アクセシビリティ）
   maximumScale: 5,
   userScalable: true,
+  // ホーム追加・スタンドアロン起動時の枠色（manifest の theme_color と揃える）
+  themeColor: "#0b5cab",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

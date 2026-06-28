@@ -48,6 +48,7 @@ CLAUDE.md            … 設計思想・法的ガードレール・高齢者UX�
 
 scripts/gen-prompt.mjs … judge.md → lib/judgePrompt.generated.ts を生成（端末同梱用・pre フックで自動）
 lib/judge.ts         … 利用者のキーで端末から Claude を直接呼ぶ（BYOK・dangerouslyAllowBrowser）→ 防御的 parse → 検証
+lib/facts.ts         … 確認事実の最小抽出（端末内・純関数）。電話番号 国際/国内・URL 有無→不明 を判定し Facts に詰める（推測で埋めない）
 lib/schema.ts        … JudgeResult の型・検証・緑ガードレール・fail-closed 既定値
 lib/apiKey.ts        … APIキーの保管（localStorage・端末内のみ）＋形式バリデータ
 lib/ocr.ts           … 端末内 OCR（画像はサーバへ送らない）
@@ -64,23 +65,23 @@ components/ResultScreen.tsx … 3色結果＋理由＋次の一手1つ＋ワン�
 
 実装計画は「入力1画面 → 間 → 3色結果」の MVP。
 
-**現在地**: MVP の主要フロー（キー設定 → 入力 → 間 → 3色結果 → 発信/家族共有）は完成。`npm test`／`tsc`／`next build` すべて緑、`npm audit` 0件。**残るは Task 5 のみ＝これが片付けば MVP 完成**。
+**現在地**: MVP の主要フロー（キー設定 → 入力 → 間 → 3色結果 → 発信/家族共有）に加え、Task 5（確認事実の最小配線・PWA・アクセシビリティ）まで実装完了。`npm test`／`tsc`／`next build` すべて緑、`npm audit` 0件。**MVP は機能的に完成**（残る確認は下記の「実機アクセシビリティ通し」のみ）。
 
 - [x] **Task 1** 判定ハーネス＋judge検証テスト（ゲート緑）
 - [x] ~~**Task 2** バックエンド判定API（薄いプロキシ）~~ → **BYOK 直接方式へ移行して廃止**（運営者がキー・内容を持たない／ログを残さないため。`app/api/judge` 削除）
 - [x] **Task 3** 入力1画面（貼る／声／写真OCR・送信前確認）
 - [x] **Task 4** 3色結果画面＋次の一手＋「間」（入力 → 間（最小2.2sの一拍） → 結果。judge() を直接呼び fail-closed で黄に倒す。🟥🟨🟩・reason・next_action（1つだけ）・ワンタップ発信 `tel:188`/`tel:%239110`/金融サービス利用者相談室・家族共有 Web Share（非対応はコピー）・🟩の「保証ではない」一文）
 - [x] **BYOK 化** APIキーは利用者が画面で入力・端末内保存。判定は端末から Anthropic に直接（運営者を経由しない）。auth エラーはキー画面へ戻す。
-- [ ] **Task 5（MVP 仕上げ・残りこれだけ）** 確認事実の最小配線 ＋ PWA／アクセシビリティ仕上げ。完了条件（DoD）:
-  - [ ] **確認事実の最小配線**: 入力テキストから端末内で軽く抽出し `Facts` に詰めて `judge()` へ渡す（推測で埋めない＝judge.md の規則）
-    - [ ] 電話番号: 国際（`+`／`010` 等の国際発信）/ 国内 を判定して `電話番号` に
-    - [ ] URL: 本文に URL があるかを検出して `URL評価: "不明"` を立てる（評価APIは将来。まずは有無のみ）
-    - [ ] 純関数化＋決定的テスト（API不要）。OCR/音声で得たテキストにも効くこと
-  - [ ] **PWA 仕上げ**: `manifest`（名前・アイコン・`display:standalone`・テーマ色）＋ ホーム追加で起動できる
-  - [ ] **アクセシビリティ通し**: 全画面（キー設定／入力／間／結果）で 16px+・行間1.5+・タッチ44px+・コントラスト4.5:1+・読み上げ（`aria-live`）・キーボード操作を実機で確認
-  - [ ] `npm test`／`tsc`／`next build` 緑・`npm audit` 0件を維持
+- [x] **Task 5（MVP 仕上げ）** 確認事実の最小配線 ＋ PWA／アクセシビリティ仕上げ。完了条件（DoD）:
+  - [x] **確認事実の最小配線**: 入力テキストから端末内で軽く抽出し `Facts` に詰めて `judge()` へ渡す（`lib/facts.ts`・`app/page.tsx` で配線。推測で埋めない＝judge.md の規則。確信が持てない項目はキー自体を付けない）
+    - [x] 電話番号: 国際（`+`／`010` 国際発信プレフィクス）/ 国内（`0` 始まり10〜11桁）を判定して `電話番号` に。両方あれば強い方＝国際を優先
+    - [x] URL: 本文に URL（`http(s)://`／`www.`）があるかを検出して `URL評価: "不明"` を立てる（評価APIは将来。まずは有無のみ／メールアドレス等は誤検出しない保守的判定）
+    - [x] 純関数化＋決定的テスト（`test/facts.test.ts`・API不要・無課金）。全角数字・改行混じり（OCR/音声由来）テキストにも効く
+  - [x] **PWA 仕上げ**: `app/manifest.ts`（名前・`short_name`・アイコン192/512/maskable・`display:standalone`・`theme_color`・`background_color`・`start_url`）＋ `app/apple-icon.png`（iOS ホーム追加）・`app/icon.png`（favicon）。アイコンは依存ゼロの生成器 `scripts/gen-icons.mjs`（盾＋チェックを手描き）で生成。`themeColor` を viewport にも反映
+  - [x] **アクセシビリティ通し（構造）**: 全画面で 16px+（既定18px）・行間1.5+（1.7）・タッチ44px+（ボタン min-height 60px）・コントラスト4.5:1+（配色トークン）・読み上げ（`aria-live`／`role=alert,status`）・キーボード操作（`focus-visible`）・`prefers-reduced-motion` 対応を `globals.css`／各コンポーネントで担保。**残: 実機（高齢者端末・スクリーンリーダ）での通し確認はリリース前に人手で行う**
+  - [x] `npm test`（決定的42件緑）／`tsc`／`next build` 緑・`npm audit` 0件を維持
 
-> Task 5 は**未実装**（このコミット時点）。上のチェックがすべて埋まれば MVP 完成＝リリース判断に進める。
+> Task 5 実装済み。残るは「実機でのアクセシビリティ通し確認」（人手）と、将来タスク（URL/振込先/金融庁の外部照合、実フィード接続）。これで MVP は機能的に完成＝リリース判断に進める。
 
 ## 設計上の厳守事項（CLAUDE.md より）
 
